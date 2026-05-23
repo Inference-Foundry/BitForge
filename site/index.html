@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BitForge: LLM Quantization State-of-the-Art & Simulation Lab</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'bf-bg': '#fcfaf8',
+                        'bf-card': '#ffffff',
+                        'bf-text': '#292524',
+                        'bf-accent': '#ea580c',
+                        'bf-muted': '#78716c',
+                        'bf-border': '#e7e5e4',
+                        'bf-light-accent': '#ffedd5'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['Fira Code', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- KaTeX for math formatting -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+    <style>
+        body {
+            background-color: #fcfaf8;
+            color: #292524;
+            overflow-x: hidden;
+        }
+
+        .nav-active {
+            border-left-color: #ea580c;
+            background-color: #ffedd5;
+            color: #ea580c;
+            font-weight: 600;
+        }
+
+        .tab-active {
+            border-bottom-color: #ea580c;
+            color: #ea580c;
+            font-weight: 600;
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 40vh;
+            max-height: 400px;
+        }
+
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 50vh;
+            }
+        }
+
+        .katex-display {
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding: 1rem 0;
+        }
+
+        /* Outlier Lab Chart styles for beautiful light-theme bars */
+        .chart-container-outliers {
+            height: 240px;
+            display: flex;
+            position: relative;
+            border-bottom: 1px solid #e7e5e4;
+            padding-bottom: 1px;
+        }
+
+        .chart-y-axis-outliers {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100%;
+            padding-right: 12px;
+            font-family: monospace;
+            font-size: 11px;
+            color: #78716c;
+            text-align: right;
+            width: 40px;
+            border-right: 1px solid #e7e5e4;
+        }
+
+        .chart-bars-outliers {
+            flex: 1;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+            padding: 0 8px;
+            height: 100%;
+        }
+
+        .bar-outliers {
+            width: 5%;
+            background: #a8a29e;
+            border-radius: 4px 4px 0 0;
+            transition: height 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.3s;
+            position: relative;
+        }
+
+        .bar-outliers.outlier {
+            background: #ea580c;
+            box-shadow: 0 0 8px rgba(234, 88, 12, 0.25);
+        }
+
+        .bar-outliers:hover::after {
+            content: attr(data-val);
+            position: absolute;
+            top: -24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #292524;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            color: white;
+            z-index: 10;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+
+<body class="antialiased flex h-screen overflow-hidden">
+
+    <!-- Sidebar Navigation -->
+    <nav class="w-72 bg-bf-card border-r border-bf-border flex-shrink-0 hidden md:flex flex-col z-20 shadow-sm">
+        <div class="p-6 border-b border-bf-border">
+            <h1 class="text-2xl font-bold tracking-tight text-bf-text">Bit<span class="text-bf-accent">Forge</span></h1>
+            <p class="text-xs text-bf-muted mt-1 uppercase tracking-wider font-semibold">Quantization SOTA & Lab</p>
+        </div>
+        <ul class="flex-1 overflow-y-auto py-4" id="nav-menu">
+            <li>
+                <button data-target="sec-intro" class="w-full text-left px-6 py-3 border-l-4 border-transparent hover:bg-stone-50 transition-colors nav-active">
+                    <i class="fa-solid fa-file-invoice mr-2 text-bf-accent"></i> Executive Summary
+                </button>
+            </li>
+            <li>
+                <button data-target="sec-simulator" class="w-full text-left px-6 py-3 border-l-4 border-transparent hover:bg-stone-50 transition-colors">
+                    <i class="fa-solid fa-sliders mr-2"></i> Quantization Simulator
+                </button>
+            </li>
+            <li>
+                <button data-target="sec-math" class="w-full text-left px-6 py-3 border-l-4 border-transparent hover:bg-stone-50 transition-colors">
+                    <i class="fa-solid fa-square-root-variable mr-2"></i> 1. Math Foundations
+                </button>
+            </li>
+            <li>
+                <button data-target="sec-arch" class="w-full text-left px-6 py-3 border-l-4 border-transparent hover:bg-stone-50 transition-colors">
+                    <i class="fa-solid fa-layer-group mr-2"></i> 2. Architectures
+                </button>
+            </li>
+            <li>
+                <button data-target="sec-outliers" class="w-full text-left px-6 py-3 border-l-4 border-transparent hover:bg-stone-50 transition-colors">
+                    <i class="fa-solid fa-wave-square mr-2"></i> Outlier Suppression Lab
+                </button>
+            </li>
+            <li>
+                <button data-target="sec-runtime" class="w-full text-left px-6 py-3 border-l-4 border-transparent hover:bg-stone-50 transition-colors">
+                    <i class="fa-solid fa-microchip mr-2"></i> 3. Runtime Engines
+                </button>
+            </li>
+            <li>
+                <button data-target="sec-empirical" class="w-full text-left px-6 py-3 border-l-4 border-transparent hover:bg-stone-50 transition-colors">
+                    <i class="fa-solid fa-chart-line mr-2"></i> 4. Empirical Evaluation
+                </button>
+            </li>
+            <li>
+                <button data-target="sec-questions" class="w-full text-left px-6 py-3 border-l-4 border-transparent hover:bg-stone-50 transition-colors">
+                    <i class="fa-solid fa-circle-question mr-2"></i> 5. Open Questions
+                </button>
+            </li>
+        </ul>
+        <div class="p-6 border-t border-bf-border bg-stone-50">
+            <a href="https://github.com/Inference-Foundry/BitForge" target="_blank" class="flex items-center justify-center gap-2 w-full bg-white border border-bf-border hover:bg-stone-100 text-bf-text text-sm font-semibold py-2.5 px-4 rounded-lg transition-colors shadow-sm">
+                <i class="fa-brands fa-github text-lg"></i>
+                <span>Open Source Repository</span>
+            </a>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col h-screen overflow-hidden">
+        <!-- Mobile Header -->
+        <header class="bg-bf-card border-b border-bf-border p-4 md:hidden flex justify-between items-center z-20">
+            <h1 class="text-xl font-bold">Bit<span class="text-bf-accent">Forge</span></h1>
+            <button id="mobile-menu-btn" class="p-2 bg-stone-100 rounded text-bf-text">&#9776;</button>
+        </header>
+
+        <!-- Mobile Navigation Menu -->
+        <div id="mobile-nav" class="hidden md:hidden absolute top-16 left-0 w-full bg-bf-card border-b border-bf-border z-30 shadow-md">
+            <ul class="py-2" id="mobile-nav-menu">
+            </ul>
+        </div>
+
+        <main class="flex-1 overflow-y-auto p-6 md:p-12 scroll-smooth bg-bf-bg" id="main-content">
+            
+            <!-- EXECUTIVE SUMMARY -->
+            <section id="sec-intro" class="max-w-4xl mx-auto block section-view">
+                <div class="mb-8">
+                    <span class="bg-orange-100 text-bf-accent px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase">Open Research Project</span>
+                    <h2 class="text-4xl font-extrabold mt-4 mb-4 text-bf-text tracking-tight">State-of-the-Art in LLM Quantization</h2>
+                    <p class="text-lg text-bf-muted leading-relaxed font-light">
+                        A rigorous technical portal documenting neural network compression at Inference Foundry. This site synthesizes the mathematical underpinnings, architectural breakthroughs, and empirical physics defining sub-4-bit Large Language Model inference capabilities in 2026.
+                    </p>
+                </div>
+
+                <div class="border-l-4 border-bf-accent bg-orange-50/50 p-6 rounded-r-xl border border-bf-border border-l-0 mb-8">
+                    <h3 class="font-bold text-lg text-bf-text mb-2"><i class="fa-solid fa-circle-info text-bf-accent mr-2"></i>Not a Product — An Open Source Initiative</h3>
+                    <p class="text-sm text-bf-muted leading-relaxed">
+                        BitForge is strictly a scientific and engineering research exploration. Our mandate is to measure quantization honestly across varying model scopes, hardware boundaries, and precision ranges. All core libraries, benchmarking results, and mathematical deconstructions are fully open source.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-xl border border-bf-border shadow-sm">
+                        <div class="text-3xl mb-3 text-bf-accent"><i class="fa-solid fa-chart-column"></i></div>
+                        <h3 class="font-bold text-lg mb-2 text-bf-text">The Objective</h3>
+                        <p class="text-bf-muted text-sm leading-relaxed">Translate theoretical memory-bound constraints into highly optimized, mathematically grounded tensor representations that permit scaling >100B parameter models on consumer silicon without catastrophic reasoning degradation.</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl border border-bf-border shadow-sm">
+                        <div class="text-3xl mb-3 text-bf-accent"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                        <h3 class="font-bold text-lg mb-2 text-bf-text">The Challenge</h3>
+                        <p class="text-bf-muted text-sm leading-relaxed">Managing the extreme asymmetry between weight distributions (relatively normal) and activation distributions (characterized by severe, structurally vital outliers up to 100x mean magnitude) during token generation.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- QUANTIZATION SIMULATOR -->
+            <section id="sec-simulator" class="max-w-5xl mx-auto hidden section-view">
+                <div class="mb-8 border-b border-bf-border pb-4">
+                    <span class="text-xs font-bold text-bf-accent uppercase tracking-wider">Simulation Lab</span>
+                    <h2 class="text-3xl font-extrabold text-bf-text mt-1">Quantization Trade-off Simulator</h2>
+                    <p class="text-bf-muted mt-2">Simulate the computational and cognitive trade-offs of compressing large language models in real-time based on empirical baseline datasets.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <!-- Controls Column -->
+                    <div class="lg:col-span-5 bg-white p-6 rounded-xl border border-bf-border shadow-sm flex flex-col gap-6">
+                        <h3 class="font-bold text-lg text-bf-text border-b border-stone-100 pb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-bf-accent"></i>
+                            <span>Parameters</span>
+                        </h3>
+
+                        <div>
+                            <label for="model-select" class="block text-xs font-bold text-bf-muted uppercase tracking-wider mb-2">Reference Model Size</label>
+                            <select id="model-select" class="w-full bg-stone-50 border border-bf-border p-3 rounded-lg text-bf-text text-sm outline-none focus:border-bf-accent transition-colors cursor-pointer">
+                                <option value="llama8b" data-size="8">Llama 3 (8B parameters)</option>
+                                <option value="mistral7b" data-size="7">Mistral (7B parameters)</option>
+                                <option value="gemma2b" data-size="2">Gemma 2 (2B parameters)</option>
+                                <option value="llama70b" data-size="70">Llama 3 (70B parameters)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-bf-muted uppercase tracking-wider mb-2">Target Bit-Width (Precision)</label>
+                            <div class="grid grid-cols-2 gap-3" id="simulator-bit-grid">
+                                <button class="bit-btn text-left p-3 border border-bf-border rounded-lg bg-bf-light-accent border-bf-accent flex flex-col transition-all active" data-bits="16">
+                                    <span class="font-bold text-sm text-bf-accent">16-bit</span>
+                                    <span class="text-2xs text-bf-muted">FP16 / BF16</span>
+                                </button>
+                                <button class="bit-btn text-left p-3 border border-bf-border rounded-lg bg-white hover:bg-stone-50 flex flex-col transition-all" data-bits="8">
+                                    <span class="font-bold text-sm text-bf-text">8-bit</span>
+                                    <span class="text-2xs text-bf-muted">INT8 (RTN)</span>
+                                </button>
+                                <button class="bit-btn text-left p-3 border border-bf-border rounded-lg bg-white hover:bg-stone-50 flex flex-col transition-all" data-bits="4">
+                                    <span class="font-bold text-sm text-bf-text">4-bit</span>
+                                    <span class="text-2xs text-bf-muted">INT4 (AWQ/GPTQ)</span>
+                                </button>
+                                <button class="bit-btn text-left p-3 border border-bf-border rounded-lg bg-white hover:bg-stone-50 flex flex-col transition-all" data-bits="2">
+                                    <span class="font-bold text-sm text-bf-text">2-bit</span>
+                                    <span class="text-2xs text-bf-muted">INT2 (Extreme)</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="calibration-select" class="block text-xs font-bold text-bf-muted uppercase tracking-wider mb-2">Calibration Distribution</label>
+                            <select id="calibration-select" class="w-full bg-stone-50 border border-bf-border p-3 rounded-lg text-bf-text text-sm outline-none focus:border-bf-accent transition-colors cursor-pointer">
+                                <option value="generic">Generic (WikiText-2 / C4)</option>
+                                <option value="medical">Specialized Domain (Clinical Notes)</option>
+                                <option value="code">Specialized Domain (Source Code)</option>
+                            </select>
+                            <p class="text-3xs text-bf-muted mt-2">Configures calibration priors to measure downstream reasoning vs specialty domain drift.</p>
+                        </div>
+                    </div>
+
+                    <!-- Projection Column -->
+                    <div class="lg:col-span-7 bg-white p-6 rounded-xl border border-bf-border shadow-sm flex flex-col gap-6">
+                        <h3 class="font-bold text-lg text-bf-text border-b border-stone-100 pb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-chart-column text-bf-accent"></i>
+                            <span>Projected SOTA Metrics</span>
+                        </h3>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Metric 1: VRAM -->
+                            <div class="bg-stone-50 p-4 border border-bf-border rounded-xl">
+                                <span class="block text-3xs font-bold text-bf-muted uppercase tracking-wider mb-1">Memory Footprint</span>
+                                <div class="flex items-baseline gap-1">
+                                    <span id="vram-val" class="text-3xl font-extrabold text-bf-text tracking-tight">16.0</span>
+                                    <span class="text-sm font-semibold text-bf-muted">GB</span>
+                                </div>
+                                <div class="w-full bg-stone-200 h-2 rounded-full overflow-hidden mt-3 mb-2">
+                                    <div id="vram-bar" class="bg-bf-accent h-full transition-all duration-500" style="width: 100%;"></div>
+                                </div>
+                                <span id="vram-save" class="text-2xs text-bf-muted font-medium">Original baseline scale</span>
+                            </div>
+
+                            <!-- Metric 2: Speed -->
+                            <div class="bg-stone-50 p-4 border border-bf-border rounded-xl">
+                                <span class="block text-3xs font-bold text-bf-muted uppercase tracking-wider mb-1">Generation Speed</span>
+                                <div class="flex items-baseline gap-1">
+                                    <span id="speed-val" class="text-3xl font-extrabold text-bf-text tracking-tight">25</span>
+                                    <span class="text-sm font-semibold text-bf-muted">tok/s</span>
+                                </div>
+                                <div class="w-full bg-stone-200 h-2 rounded-full overflow-hidden mt-3 mb-2">
+                                    <div id="speed-bar" class="bg-amber-500 h-full transition-all duration-500" style="width: 25%;"></div>
+                                </div>
+                                <span id="speed-gain" class="text-2xs text-bf-muted font-medium">Base processing speed</span>
+                            </div>
+                        </div>
+
+                        <!-- Perplexity Section -->
+                        <div class="bg-stone-50 p-5 border border-bf-border rounded-xl">
+                            <span class="block text-3xs font-bold text-bf-muted uppercase tracking-wider mb-3">Model Accuracy & Loss Profile</span>
+                            
+                            <div class="grid grid-cols-2 gap-4 border-b border-stone-200 pb-4 mb-4">
+                                <div class="flex flex-col">
+                                    <span class="text-2xs text-bf-muted">WikiText-2 Perplexity</span>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <span id="ppl-val" class="text-2xl font-extrabold text-bf-text tracking-tight">6.15</span>
+                                        <span id="ppl-status" class="bg-emerald-100 text-emerald-800 border border-emerald-300 text-3xs font-bold px-2 py-0.5 rounded uppercase">EXCELLENT</span>
+                                    </div>
+                                </div>
+                                <div class="flex flex-col">
+                                    <span class="text-2xs text-bf-muted">Reasoning Retention</span>
+                                    <span id="retention-val" class="text-2xl font-extrabold text-bf-text tracking-tight mt-1">100.0%</span>
+                                </div>
+                            </div>
+
+                            <p id="sim-explanation" class="text-xs text-bf-muted leading-relaxed font-light">
+                                At full 16-bit float precision, the model maintains its baseline pre-trained perplexity score and maximum general reasoning capabilities. No degradation.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- MATHEMATICAL FOUNDATIONS -->
+            <section id="sec-math" class="max-w-4xl mx-auto hidden section-view">
+                <h2 class="text-3xl font-bold mb-6 border-b border-bf-border pb-2 text-bf-text tracking-tight">1. Mathematical Foundations & Granularity</h2>
+                <p class="mb-6 text-bf-muted font-light leading-relaxed">This section establishes the formal mathematical definitions of tensor quantization, distinguishing between affine mappings and the structural implications of group-wise granularity.</p>
+
+                <div class="bg-white p-8 rounded-xl border border-bf-border shadow-sm mb-8">
+                    <h3 class="text-xl font-bold mb-4 text-bf-accent tracking-tight">1.1 The Core Math: Affine vs. Symmetric</h3>
+                    <p class="mb-4 text-sm text-bf-muted leading-relaxed">Quantization maps high-precision floating-point values $x \in \mathbb{R}$ to lower-precision integer representations $x_q \in \mathbb{Z}$ via a scaling factor $s$ and a zero-point $z$.</p>
+
+                    <h4 class="font-bold text-bf-text mt-6 mb-2">Uniform Affine (Asymmetric) Quantization</h4>
+                    <p class="text-xs mb-2 text-bf-muted">Maps the min/max of the float range to the min/max of the integer range. Ideal for skewed distributions (e.g., ReLU activations).</p>
+                    <div class="bg-stone-50 p-4 rounded-lg overflow-x-auto mb-4 border border-bf-border text-center font-mono text-sm text-bf-text">
+                        $$ s = \frac{x_{max} - x_{min}}{q_{max} - q_{min}} $$
+                        $$ z = \lfloor q_{min} - \frac{x_{min}}{s} \rceil $$
+                        $$ x_q = \text{clip}\left(\lfloor \frac{x}{s} \rceil + z, q_{min}, q_{max}\right) $$
+                    </div>
+                    <p class="text-xs mb-4 text-bf-muted leading-relaxed">Where $\lfloor \cdot \rceil$ denotes the Round-to-Nearest (RTN) function, and $\text{clip}(v, a, b) = \max(a, \min(v, b))$. Dequantization reconstructs the approximate float: $\tilde{x} = s(x_q - z)$.</p>
+
+                    <h4 class="font-bold text-bf-text mt-6 mb-2">Symmetric Quantization</h4>
+                    <p class="text-xs mb-2 text-bf-muted">Forces the zero-point $z=0$, simplifying vector dot-product hardware. The float range is made symmetric around zero before mapping.</p>
+                    <div class="bg-stone-50 p-4 rounded-lg overflow-x-auto border border-bf-border text-center font-mono text-sm text-bf-text">
+                        $$ s = \frac{\max(|x_{max}|, |x_{min}|)}{q_{max}} $$
+                        $$ x_q = \text{clip}\left(\lfloor \frac{x}{s} \rceil, -q_{max}, q_{max}\right) $$
+                    </div>
+                </div>
+
+                <div class="bg-white p-8 rounded-xl border border-bf-border shadow-sm mb-8">
+                    <h3 class="text-xl font-bold mb-4 text-bf-accent tracking-tight">1.2 Granularity Trade-offs</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="p-4 bg-stone-50/50 rounded-lg border border-bf-border">
+                            <h4 class="font-bold text-sm text-bf-text mb-1">Per-Tensor</h4>
+                            <p class="text-xs text-bf-muted leading-relaxed">One scale $s$ and zero-point $z$ for the entire weight matrix. High hardware efficiency, extreme quantization error due to outlier domination.</p>
+                        </div>
+                        <div class="p-4 bg-stone-50/50 rounded-lg border border-bf-border">
+                            <h4 class="font-bold text-sm text-bf-text mb-1">Per-Channel</h4>
+                            <p class="text-xs text-bf-muted leading-relaxed">One scalar per output channel (row/col). Standard for INT8 PTQ. Balances computational error with minimal memory overhead for scaling factors.</p>
+                        </div>
+                        <div class="p-4 bg-stone-50/50 rounded-lg border border-bf-border">
+                            <h4 class="font-bold text-sm text-bf-text mb-1">Per-Group (Block-wise)</h4>
+                            <p class="text-xs text-bf-muted leading-relaxed">Divides channels into local groups (e.g., $g=128$). Crucial for sub-4-bit models. Isolates dynamic spatial outliers but increases scales overhead.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-stone-900 text-stone-100 p-8 rounded-xl shadow-md">
+                    <h3 class="text-xl font-bold mb-4 text-orange-400 tracking-tight">1.3 The Weight vs. Activation Asymmetry</h3>
+                    <p class="mb-4 text-sm text-stone-300 leading-relaxed font-light">
+                        Quantizing weights alone (e.g., W4A16) is purely a memory-bandwidth optimization. However, W8A8 or W4A8 introduces catastrophic difficulty due to the mathematical origin of dynamic range spikes in LLM activations.
+                    </p>
+                    <p class="mb-4 text-sm text-stone-300 leading-relaxed font-light">
+                        Empirically, $>6$B parameter models exhibit systemic, massive outliers in specific activation channels. While weight distributions $W \sim \mathcal{N}(0, \sigma^2)$ are tight, activation distributions $X$ have channels where $X_{i,j} > 100 \times \mathbb{E}[X]$.
+                    </p>
+                    <p class="text-sm leading-relaxed bg-black/30 p-4 rounded-lg border border-stone-700 font-light text-stone-200">
+                        If per-tensor or naive per-token quantization is applied to $X$, these outliers force the scale factor $s$ to be massive. Consequently, 99.9% of normal activation values are crushed to zero by the RTN function $\lfloor \frac{x}{s} \rceil = 0$, completely destroying the attention mechanism's representational capacity.
+                    </p>
+                </div>
+            </section>
+
+            <!-- ARCHITECTURAL BREAKTHROUGHS -->
+            <section id="sec-arch" class="max-w-5xl mx-auto hidden section-view">
+                <h2 class="text-3xl font-bold mb-6 border-b border-bf-border pb-2 text-bf-text tracking-tight">2. Architectural Breakthroughs</h2>
+                <p class="mb-6 text-bf-muted font-light">Deconstructing the exact optimization objectives and algorithms driving modern Post-Training Quantization (PTQ) and local execution.</p>
+
+                <div class="flex flex-wrap border-b border-bf-border mb-6">
+                    <button class="arch-tab tab-active px-4 py-2.5 mr-2 mb-2 text-sm font-semibold tracking-wide" data-target="tab-gptq">GPTQ</button>
+                    <button class="arch-tab px-4 py-2.5 mr-2 mb-2 text-sm font-semibold text-bf-muted hover:text-bf-text tracking-wide" data-target="tab-awq">AWQ</button>
+                    <button class="arch-tab px-4 py-2.5 mr-2 mb-2 text-sm font-semibold text-bf-muted hover:text-bf-text tracking-wide" data-target="tab-smooth">SmoothQuant</button>
+                    <button class="arch-tab px-4 py-2.5 mb-2 text-sm font-semibold text-bf-muted hover:text-bf-text tracking-wide" data-target="tab-bnb">bitsandbytes</button>
+                </div>
+
+                <!-- GPTQ TAB -->
+                <div id="tab-gptq" class="arch-content block bg-white p-8 rounded-xl border border-bf-border shadow-sm">
+                    <h3 class="text-2xl font-bold mb-1 text-bf-text tracking-tight">GPTQ: Generalized Post-Training Quantization</h3>
+                    <p class="text-xs font-semibold text-bf-accent mb-6 uppercase tracking-wider">Layer-wise Optimal Brain Surgeon (OBS) Optimization</p>
+
+                    <p class="mb-4 text-sm text-bf-muted leading-relaxed">GPTQ solves the layer-wise weight quantization problem by minimizing the squared error of the output activations for a given calibration set $X$:</p>
+                    <div class="bg-stone-50 p-4 rounded-lg mb-6 border border-bf-border text-center font-mono text-sm text-bf-text">
+                        $$ \arg\min_{\hat{W}} ||WX - \hat{W}X||_2^2 $$
+                    </div>
+
+                    <h4 class="font-bold text-sm text-bf-text mb-3">Key Technical Principles:</h4>
+                    <ul class="list-disc pl-5 mb-6 text-sm text-bf-muted space-y-3 leading-relaxed">
+                        <li><strong>Inverse Hessian Correction:</strong> It utilizes the inverse Hessian matrix $H^{-1} = (2XX^T)^{-1}$ to gauge the sensitivity of weights. If a weight is quantized and an error $\delta$ is introduced, GPTQ updates the remaining unquantized weights to compensate.</li>
+                        <li><strong>Weight Update Rule:</strong> The optimal compensation for the remaining weights $W_{remain}$ given an error $\delta_{q}$ at weight index $q$ is: <br>
+                            <span class="block mt-2 bg-stone-100 p-3 text-center rounded-lg text-bf-text font-mono text-xs">$\Delta W_{remain} = - \frac{\delta_q}{[H^{-1}]_{qq}} \cdot H^{-1}_{q,:}$</span>
+                        </li>
+                        <li><strong>Lazy Batch Updates:</strong> OBS is strictly sequential ($O(d_{col}^3)$). GPTQ achieves scalability via <em>lazy batch updates</em>. It quantizes weights in blocks (e.g., 128 columns) and applies the Cholesky decomposition to update the remaining matrix in dense matrix-matrix multiplications, converting the process to memory-bound rather than compute-bound during calibration.</li>
+                    </ul>
+                </div>
+
+                <!-- AWQ TAB -->
+                <div id="tab-awq" class="arch-content hidden bg-white p-8 rounded-xl border border-bf-border shadow-sm">
+                    <h3 class="text-2xl font-bold mb-1 text-bf-text tracking-tight">AWQ: Activation-Aware Weight Quantization</h3>
+                    <p class="text-xs font-semibold text-bf-accent mb-6 uppercase tracking-wider">Protecting 1% of Salient Weights</p>
+
+                    <p class="mb-4 text-sm text-bf-muted leading-relaxed">AWQ posits that weights are not equally important. Keeping just ~1% of salient weights in FP16/BF16 significantly reduces quantization error. <strong>Crucially, weight salience is dictated by activation magnitudes, not weight magnitudes.</strong></p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div class="bg-stone-50 p-4 border border-bf-border rounded-lg">
+                            <h4 class="font-bold text-xs uppercase tracking-wider text-bf-text mb-2">Activation Scaling</h4>
+                            <p class="text-xs text-bf-muted leading-relaxed">By reviewing calibration activations $X$, AWQ observes that channels with massive averages correspond directly to columns in the weight matrix that hold vital logical mappings.</p>
+                        </div>
+                        <div class="bg-stone-50 p-4 border border-bf-border rounded-lg">
+                            <h4 class="font-bold text-xs uppercase tracking-wider text-bf-text mb-2">The Dynamic Scaling Hack</h4>
+                            <p class="text-xs text-bf-muted leading-relaxed">To bypass slow mixed-precision runtimes, AWQ scales up salient weight channels by $s$ and scales down activation channels by $1/s$. The resulting math remains equivalent while weights are safely compressed to INT4.</p>
+                        </div>
+                    </div>
+
+                    <h4 class="font-bold text-sm text-bf-text mb-3">Optimization Objective:</h4>
+                    <p class="text-sm text-bf-muted mb-4">Find optimal per-channel scaling factors $s$ to minimize quantization error without updating the actual weight values (unlike GPTQ):</p>
+                    <div class="bg-stone-50 p-4 rounded-lg mb-4 border border-bf-border text-center font-mono text-sm text-bf-text">
+                        $$ L(s) = || WX - Q(W \cdot \Delta_s) \cdot \Delta_s^{-1}X || $$
+                        $$ \text{where } \Delta_s = \text{diag}(s) $$
+                    </div>
+                </div>
+
+                <!-- SMOOTHQUANT TAB -->
+                <div id="tab-smooth" class="arch-content hidden bg-white p-8 rounded-xl border border-bf-border shadow-sm">
+                    <h3 class="text-2xl font-bold mb-1 text-bf-text tracking-tight">SmoothQuant</h3>
+                    <p class="text-xs font-semibold text-bf-accent mb-6 uppercase tracking-wider">Migrating Difficulty: W8A8 Enabler</p>
+
+                    <p class="mb-4 text-sm text-bf-muted leading-relaxed">SmoothQuant addresses the W8A8 problem directly. Since activations are too hard to quantize due to massive outliers, and weights are easy to quantize, SmoothQuant shifts the magnitude variance from activations to weights mathematically before quantization.</p>
+
+                    <h4 class="font-bold text-sm text-bf-text mb-3">The Mathematical Transformation:</h4>
+                    <p class="text-sm text-bf-muted mb-4">Given linear layer $Y = WX$, we introduce an invertible diagonal scaling matrix $\text{diag}(s)$:</p>
+                    <div class="bg-stone-50 p-4 rounded-lg mb-6 border border-bf-border font-mono text-sm text-bf-text">
+                        $$ Y = (W \cdot \text{diag}(s)^{-1}) \cdot (\text{diag}(s) \cdot X) $$
+                        $$ \hat{W} = W \cdot \text{diag}(s)^{-1} \quad ; \quad \hat{X} = \text{diag}(s) \cdot X $$
+                    </div>
+
+                    <p class="text-sm text-bf-muted mb-4 font-light">The scaling factor $s_i$ for the $i$-th channel balances the maximum magnitudes of weights and activations, controlled by migration strength parameter $\alpha$ (typically 0.5):</p>
+                    <div class="bg-stone-50 p-4 rounded-lg text-center border border-bf-border mb-6 font-mono text-sm text-bf-text">
+                        $$ s_i = \frac{\max(|X_i|)^\alpha}{\max(|W_i|)^{1-\alpha}} $$
+                    </div>
+                    <p class="text-xs text-bf-muted leading-relaxed">This "smooths" the activation outliers by suppressing them, pushing the variance into the weight matrix $\hat{W}$, which is then safely quantized to INT8 using standard per-channel methods.</p>
+                </div>
+
+                <!-- BNB TAB -->
+                <div id="tab-bnb" class="arch-content hidden bg-white p-8 rounded-xl border border-bf-border shadow-sm">
+                    <h3 class="text-2xl font-bold mb-1 text-bf-text tracking-tight">bitsandbytes (LLM.int8() & NF4)</h3>
+                    <p class="text-xs font-semibold text-bf-accent mb-6 uppercase tracking-wider">Vector-wise Isolation and Information-Density</p>
+
+                    <h4 class="font-bold text-sm text-bf-text mb-2">LLM.int8() Methodology</h4>
+                    <p class="text-xs text-bf-muted leading-relaxed mb-6">Uses vector-wise quantization combined with outlier isolation. It dynamically identifies activation outliers ($> \tau$, usually 6.0) during runtime. The matrix multiplication is split: outlier columns (usually ~0.1%) are computed in FP16, while the remaining 99.9% are multiplied in INT8. Results are summed. This guarantees zero degradation but incurs runtime branching overhead.</p>
+
+                    <h4 class="font-bold text-sm text-bf-text mb-2">NormalFloat4 (NF4) for QLoRA</h4>
+                    <p class="text-xs text-bf-muted leading-relaxed mb-4">NF4 is theoretically optimal for zero-mean normal distributions. Instead of evenly spacing bins (like standard INT4), NF4 spaces the quantization bins such that each bin contains exactly the same probability mass (area under the Gaussian curve).</p>
+
+                    <div class="bg-stone-50 p-4 rounded-lg border border-bf-border">
+                        <p class="text-xs font-bold text-bf-text mb-2">Quantile Quantization Formula:</p>
+                        <div class="font-mono text-sm text-bf-text">
+                            $$ q_i = \Phi^{-1}\left(\frac{i}{2^k + 1}\right) $$
+                        </div>
+                        <p class="text-2xs mt-2 text-bf-muted">Where $\Phi^{-1}$ is the quantile function of the standard normal distribution $\mathcal{N}(0,1)$, and $k=4$ for 4-bit. This ensures maximum information density per bit for pre-trained neural network weights.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- OUTLIER LAB -->
+            <section id="sec-outliers" class="max-w-5xl mx-auto hidden section-view">
+                <div class="mb-8 border-b border-bf-border pb-4">
+                    <span class="text-xs font-bold text-bf-accent uppercase tracking-wider">Outlier Lab</span>
+                    <h2 class="text-3xl font-extrabold text-bf-text mt-1">Activation Spikes & Outlier Suppression</h2>
+                    <p class="text-bf-muted mt-2">Observe the hidden emergence of feature spikes in LLM hidden layers, and see how outlier suppression algorithms preserve accuracy in real-time.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <!-- Chart Visualizer -->
+                    <div class="lg:col-span-7 bg-white p-6 rounded-xl border border-bf-border shadow-sm flex flex-col">
+                        <h3 class="font-bold text-lg text-bf-text border-b border-stone-100 pb-3 flex items-center gap-2 mb-4">
+                            <i class="fa-solid fa-chart-line text-bf-accent"></i>
+                            <span>Hidden Layer Activations (Hidden States)</span>
+                        </h3>
+                        
+                        <div class="chart-container-outliers flex-1">
+                            <div class="chart-y-axis-outliers">
+                                <span>15.0</span>
+                                <span>10.0</span>
+                                <span>5.0</span>
+                                <span>0.0</span>
+                            </div>
+                            <div id="activation-chart" class="chart-bars-outliers">
+                                <!-- Bars loaded dynamically via JS -->
+                            </div>
+                        </div>
+
+                        <div class="flex justify-center gap-6 mt-4 text-xs">
+                            <span class="flex items-center gap-1.5 text-bf-muted">
+                                <span class="w-3 h-3 bg-stone-400 rounded-sm"></span> Normal Channels
+                            </span>
+                            <span class="flex items-center gap-1.5 text-bf-muted">
+                                <span class="w-3 h-3 bg-bf-accent rounded-sm"></span> Outlier Spikes (Channel 4 & 11)
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Explanatory Panel -->
+                    <div class="lg:col-span-5 bg-white p-6 rounded-xl border border-bf-border shadow-sm flex flex-col gap-6">
+                        <h3 class="font-bold text-lg text-bf-text border-b border-stone-100 pb-3">Outlier Suppression Physics</h3>
+                        <p class="text-xs text-bf-muted leading-relaxed font-light">
+                            In large LLMs, severe activation spikes emerge in specific channels, exceeding average dimensions by 10-20x. When quantizing uniformly, these outliers stretch the scale range, crushing normal channel details into rounded zeros.
+                        </p>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-stone-50 p-4 border border-bf-border rounded-xl flex flex-col">
+                                <span class="text-3xs font-bold text-bf-muted uppercase tracking-wider mb-1">Outlier Peak Value</span>
+                                <span id="outlier-peak-val" class="text-2xl font-extrabold text-bf-accent tracking-tight">15.0</span>
+                            </div>
+                            <div class="bg-stone-50 p-4 border border-bf-border rounded-xl flex flex-col justify-center">
+                                <span class="text-3xs font-bold text-bf-muted uppercase tracking-wider mb-1">Quantization Status</span>
+                                <span id="quant-status-text" class="text-sm font-bold text-bf-accent flex items-center gap-1.5 mt-1">
+                                    <i class="fa-solid fa-triangle-exclamation"></i> CRUSHED
+                                </span>
+                            </div>
+                        </div>
+
+                        <button id="suppress-btn" class="w-full bg-bf-accent text-white hover:bg-orange-600 text-sm font-semibold py-3 px-4 rounded-lg transition-all shadow-sm flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Apply SmoothQuant Migration
+                        </button>
+                        
+                        <p class="text-3xs text-bf-muted text-center font-light leading-relaxed">
+                            SmoothQuant migrates dynamic outlier difficulty from activations to weights by mathematically scaling outlier ranges before uniform quantization occurs.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- RUNTIME ENGINES -->
+            <section id="sec-runtime" class="max-w-5xl mx-auto hidden section-view">
+                <h2 class="text-3xl font-bold mb-6 border-b border-bf-border pb-2 text-bf-text tracking-tight">3. Runtime Engines & The Inference Boundary</h2>
+                <p class="mb-6 text-bf-muted font-light">Contrasting the execution mechanics of local offloading formats versus high-throughput server runtimes, and the fundamental shift in hardware bottlenecks.</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                    <div class="bg-white p-6 rounded-xl border border-bf-border shadow-sm border-t-4 border-t-stone-800">
+                        <h3 class="text-xl font-bold mb-1 text-bf-text">GGUF (llama.cpp)</h3>
+                        <p class="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-4">CPU/GPU Heterogeneous Offloading</p>
+                        <ul class="text-xs space-y-3 text-bf-muted list-disc pl-4 leading-relaxed font-light">
+                            <li><strong>Memory Layout:</strong> Specifically designed for mmap() sequential reads. Embeds quantization metadata directly alongside tensor blocks.</li>
+                            <li><strong>Execution Mechanics:</strong> Optimized for batch size 1 (interactive generation). It loads block-wise INT4 weights into CPU caches or GPU VRAM, dequantizes them in FP32/FP16 registers using SIMD instructions, and multiplies with FP32/FP16 activations.</li>
+                            <li><strong>Optimization Focus:</strong> Overcoming severe memory bandwidth constraints on consumer system architectures (DDR5 / unified memory boundaries).</li>
+                        </ul>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl border border-bf-border shadow-sm border-t-4 border-t-bf-accent">
+                        <h3 class="text-xl font-bold mb-1 text-bf-text">vLLM / TensorRT-LLM</h3>
+                        <p class="text-xs font-semibold text-bf-accent uppercase tracking-wider mb-4">High-Throughput Server Runtimes</p>
+                        <ul class="text-xs space-y-3 text-bf-muted list-disc pl-4 leading-relaxed font-light">
+                            <li><strong>KV-Cache Management:</strong> Utilizes PagedAttention to eliminate memory fragmentation. The KV-cache often remains unquantized (FP16) or lightly quantized (INT8/FP8) to preserve generation fidelity in large contexts.</li>
+                            <li><strong>Execution Mechanics:</strong> Uses custom W4A16 or W8A8 fused CUDA kernels (e.g., Marlin, AWQ kernels). Optimized for massive batched throughput.</li>
+                            <li><strong>Optimization Focus:</strong> Maximizing Compute utilization (TFLOPS) while managing KV-cache memory capacity walls in multi-user environments.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="bg-white p-8 rounded-xl border border-bf-border shadow-sm">
+                    <h3 class="text-xl font-bold mb-4 text-bf-text tracking-tight">Kernel Bottlenecks: The Roofline Shift</h3>
+                    <p class="text-sm mb-6 text-bf-muted font-light leading-relaxed">
+                        In standard FP16 LLM generation (batch size 1), the system is strictly memory-bandwidth bound. The compute units sit idle waiting for weights to load. Mixed-precision runtimes (W4A16) alter this model. By compressing weights to 4-bit, we load data 4x faster, moving the application up the y-axis of the roofline model toward the compute-bound ceiling. However, the runtime overhead of <em>dequantizing</em> those 4-bit weights back to FP16 inside the GPU registers adds new arithmetic intensity, creating a unique sub-bottleneck where integer decoding instructions can saturate before FMA (Fused Multiply-Add) limits.
+                    </p>
+
+                    <div class="chart-container flex flex-col justify-center items-center p-4 bg-stone-50 rounded-xl border border-bf-border shadow-inner">
+                        <canvas id="rooflineChart"></canvas>
+                    </div>
+                    <p class="text-2xs text-center mt-3 text-bf-muted font-mono uppercase tracking-wider">Simulated Roofline Model Shift: Generative Phase (BS=1)</p>
+                </div>
+            </section>
+
+            <!-- EMPIRICAL EVALUATION -->
+            <section id="sec-empirical" class="max-w-5xl mx-auto hidden section-view">
+                <h2 class="text-3xl font-bold mb-6 border-b border-bf-border pb-2 text-bf-text tracking-tight">4. Empirical Evaluation & Calibration</h2>
+                <p class="mb-6 text-bf-muted font-light">Analyzing the degradation profiles across different quantization depths and the non-trivial impact of calibration datasets.</p>
+
+                <div class="bg-white p-6 rounded-xl border border-bf-border shadow-sm mb-8">
+                    <h3 class="text-xl font-bold mb-3 text-bf-text tracking-tight">Degradation Profiling: Reasoning vs. Recall</h3>
+                    <p class="text-sm mb-6 text-bf-muted font-light leading-relaxed">
+                        Empirical literature indicates that quantization impacts model capabilities asymmetrically. Absolute factual recall (e.g., TriviaQA) degrades linearly and gracefully down to INT3. However, abstract reasoning and Chain-of-Thought (CoT) capabilities (e.g., GSM8k, Math) face a catastrophic "capability cliff" transitioning from INT4 to INT3/INT2, as compressed weight spaces fail to retain the complex multi-dimensional manifolds required for logical routing.
+                    </p>
+
+                    <div class="chart-container flex flex-col justify-center items-center p-4 bg-stone-50 rounded-xl border border-bf-border shadow-inner">
+                        <canvas id="degradationChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-stone-900 text-stone-100 p-8 rounded-xl shadow-md">
+                    <h3 class="text-lg font-bold mb-2 text-orange-400 tracking-tight">Calibration Dynamics (PTQ)</h3>
+                    <p class="text-xs text-stone-300 leading-relaxed font-light mb-6">Post-Training Quantization relies on a small dataset (e.g., 128-512 sequences) to calculate clipping thresholds and inverse Hessians. The statistical nature of this data permanently biases the quantized model.</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="bg-stone-800 p-5 rounded-lg border border-stone-700">
+                            <h4 class="font-bold text-sm text-white mb-2">Sequence Length</h4>
+                            <p class="text-2xs text-stone-300 leading-relaxed font-light">Calibration on short sequences (512 tokens) truncates the activation space. The model fails to capture RoPE attention outlier spikes that only emerge at >4k contexts, leading to exploding perplexity on long-context tasks post-quantization.</p>
+                        </div>
+                        <div class="bg-stone-800 p-5 rounded-lg border border-stone-700">
+                            <h4 class="font-bold text-sm text-white mb-2">Domain Skew</h4>
+                            <p class="text-2xs text-stone-300 leading-relaxed font-light">Using WikiText for GPTQ calibration destructively impacts coding capabilities. Code generates vastly different activation outliers than natural language. Multi-domain mixture is strictly required for generalist preservation.</p>
+                        </div>
+                        <div class="bg-stone-800 p-5 rounded-lg border border-stone-700">
+                            <h4 class="font-bold text-sm text-white mb-2">Distribution Outliers</h4>
+                            <p class="text-2xs text-stone-300 leading-relaxed font-light">Algorithms using Min-Max scaling are severely compromised if the calibration set contains anomalous text producing extreme, rare activation spikes, artificially widening the dynamic range and increasing RTN noise for average tokens.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- OPEN QUESTIONS -->
+            <section id="sec-questions" class="max-w-4xl mx-auto hidden section-view">
+                <h2 class="text-3xl font-bold mb-6 border-b border-bf-border pb-2 text-bf-text tracking-tight">5. Open Research Questions (BitForge Mandate)</h2>
+                <p class="mb-6 text-bf-muted font-light">Identify structural friction points in the 2026 quantization landscape that represent high-value targets for systematic investigation.</p>
+
+                <div class="space-y-4 font-sans" id="accordion-container">
+
+                    <div class="border border-bf-border rounded-lg bg-white overflow-hidden shadow-sm">
+                        <button class="w-full text-left p-5 font-bold text-sm text-bf-text flex justify-between items-center focus:outline-none hover:bg-stone-50 accordion-btn">
+                            1. Sub-2-Bit Optimal Encoding via Non-Linear Codebooks
+                            <span class="text-bf-accent transform transition-transform duration-200"><i class="fa-solid fa-chevron-down"></i></span>
+                        </button>
+                        <div class="accordion-content hidden p-5 border-t border-bf-border bg-stone-50/50 text-xs text-bf-muted leading-relaxed">
+                            <p>Current INT2 approaches heavily rely on block-wise group sizes (e.g., g=32) where the scale parameter overhead effectively makes the model 2.6-bit. <strong class="text-bf-text">Research vector:</strong> Can we develop ternary (-1, 0, 1) or completely non-linear dense codebooks (like VQ) that map sub-2-bit weights to dynamic Look-Up Tables (LUTs) in L1 cache, entirely bypassing standard ALUs for dot products?</p>
+                        </div>
+                    </div>
+
+                    <div class="border border-bf-border rounded-lg bg-white overflow-hidden shadow-sm">
+                        <button class="w-full text-left p-5 font-bold text-sm text-bf-text flex justify-between items-center focus:outline-none hover:bg-stone-50 accordion-btn">
+                            2. Dynamic and KV-Cache Quantization Drift
+                            <span class="text-bf-accent transform transition-transform duration-200"><i class="fa-solid fa-chevron-down"></i></span>
+                        </button>
+                        <div class="accordion-content hidden p-5 border-t border-bf-border bg-stone-50/50 text-xs text-bf-muted leading-relaxed">
+                            <p>As context windows expand beyond 1 Million tokens, the KV-cache exceeds weight memory. Quantizing the KV-cache to INT4/FP8 introduces compounding error over recurrent attention layers. <strong class="text-bf-text">Research vector:</strong> Formulate a theoretical boundary for "quantization drift" in auto-regressive attention mechanisms, and design token-eviction algorithms aware of quantization sensitivity.</p>
+                        </div>
+                    </div>
+
+                    <div class="border border-bf-border rounded-lg bg-white overflow-hidden shadow-sm">
+                        <button class="w-full text-left p-5 font-bold text-sm text-bf-text flex justify-between items-center focus:outline-none hover:bg-stone-50 accordion-btn">
+                            3. Non-Linear Outliers in Mixture-of-Expert (MoE) Routings
+                            <span class="text-bf-accent transform transition-transform duration-200"><i class="fa-solid fa-chevron-down"></i></span>
+                        </button>
+                        <div class="accordion-content hidden p-5 border-t border-bf-border bg-stone-50/50 text-xs text-bf-muted leading-relaxed">
+                            <p>Standard LLM quantization assumes dense activation patterns. In MoE architectures (like Mixtral/Grok), activation distributions change radically depending on the chosen expert router path per token. <strong class="text-bf-text">Research vector:</strong> Develop expert-aware calibration methodologies where $s$ and $z$ dynamically shift based on the preceding routing probabilities, mitigating catastrophic dropouts in niche expert layers.</p>
+                        </div>
+                    </div>
+
+                    <div class="border border-bf-border rounded-lg bg-white overflow-hidden shadow-sm">
+                        <button class="w-full text-left p-5 font-bold text-sm text-bf-text flex justify-between items-center focus:outline-none hover:bg-stone-50 accordion-btn">
+                            4. QAT vs PTQ Convergence in Instruct-Tuned Models
+                            <span class="text-bf-accent transform transition-transform duration-200"><i class="fa-solid fa-chevron-down"></i></span>
+                        </button>
+                        <div class="accordion-content hidden p-5 border-t border-bf-border bg-stone-50/50 text-xs text-bf-muted leading-relaxed">
+                            <p>Post-Training Quantization (PTQ) is cheap, but Quantization-Aware Training (QAT) yields superior results by updating weights using Straight-Through Estimators (STE). <strong class="text-bf-text">Research vector:</strong> Investigate why QAT on RLHF/Instruct-tuned models often causes severe behavioral collapse (loss of refusal mechanisms or formatting collapse) compared to applying PTQ to the same model, and establish mathematically robust QAT regularization for alignment preservation.</p>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            <footer class="mt-20 border-t border-bf-border pt-6 pb-2 text-center text-xs text-stone-400">
+                Project BitForge // Inference Foundry Initiative
+            </footer>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="app.js"></script>
+</body>
+
+</html>

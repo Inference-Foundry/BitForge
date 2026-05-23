@@ -1,0 +1,13 @@
+torch>=2.1.0
+transformers>=4.36.0
+accelerate>=0.25.0
+bitsandbytes>=0.41.0
+optimum>=1.16.0
+auto-gptq>=0.6.0
+autoawq>=0.1.8
+datasets>=2.15.0
+evaluate>=0.4.1
+gguf>=0.6.0
+numpy>=1.24.0
+tqdm>=4.66.0
+click>=8.1.0
